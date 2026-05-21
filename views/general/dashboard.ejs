@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title><%= settings.name %> — Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/assets/bw-theme.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+</head>
+<body style="background:var(--bg-primary)">
+<div class="flex flex-col md:flex-row min-h-screen w-full">
+
+  <%- include('../components/navigation') %>
+
+  <main class="flex-1 p-4 md:p-8 pb-24 md:pb-8 max-w-full overflow-x-hidden">
+
+    <!-- ── WELCOME BANNER ── -->
+    <div class="welcome-banner animate-fade-up">
+      <div class="corner-accent"></div>
+      <div class="corner-accent br"></div>
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <div class="stat-label mb-1">DASHBOARD</div>
+          <h1 class="glitch-title text-2xl md:text-3xl font-bold tracking-tight" data-text="Welcome back, <%= req.session.userinfo.username %>">
+            Welcome back, <%= req.session.userinfo.username %>
+          </h1>
+          <p class="text-sm mt-1" style="color:var(--text-dim)">
+            <span style="font-family:'JetBrains Mono',monospace"><%= coins %> <%= settings.api.client.coins.name %></span>
+            &nbsp;·&nbsp; <%= new Date().toLocaleDateString('en-US', {weekday:'long', year:'numeric', month:'short', day:'numeric'}) %>
+          </p>
+        </div>
+        <a href="/servers/new" class="btn-primary px-5 py-2.5 rounded-lg text-sm font-bold inline-flex items-center gap-2 self-start">
+          <i class="fas fa-plus text-xs"></i> NEW SERVER
+        </a>
+      </div>
+    </div>
+
+    <!-- ── ALERTS ── -->
+    <% if (req.query.err === 'CANNOTAFFORDRENEWAL') { %>
+    <div class="alert-error flex items-center justify-between p-4 mb-4">
+      <span class="text-sm">Insufficient coins — need <%= settings.renewals.cost %> to renew a server.</span>
+      <button onclick="this.parentElement.remove()" style="opacity:0.6;cursor:pointer">✕</button>
+    </div>
+    <% } %>
+    <% if (req.query.err === 'DELETED') { %>
+    <div class="alert-success flex items-center justify-between p-4 mb-4">
+      <span class="text-sm">Server deleted. You can create a new one anytime.</span>
+      <button onclick="this.parentElement.remove()" style="opacity:0.6;cursor:pointer">✕</button>
+    </div>
+    <% } %>
+    <% if (req.query.success === 'RENEWED') { %>
+    <div class="alert-success flex items-center justify-between p-4 mb-4">
+      <span class="text-sm">Server renewal successful.</span>
+      <button onclick="this.parentElement.remove()" style="opacity:0.6;cursor:pointer">✕</button>
+    </div>
+    <% } %>
+
+    <!-- ── RESOURCE STATS ── -->
+    <%
+      let ram = 0, disk = 0, cpu = 0;
+      let serversUsed = pterodactyl.relationships.servers.data.length;
+      for (let i = 0; i < serversUsed; i++) {
+        let lim = pterodactyl.relationships.servers.data[i].attributes.limits;
+        ram  += typeof lim.memory === 'number' ? lim.memory : 0;
+        disk += typeof lim.disk   === 'number' ? lim.disk   : 0;
+        cpu  += typeof lim.cpu    === 'number' ? lim.cpu    : 0;
+      }
+      const totalServers = (packages ? packages.servers : 0) + extraresources.servers;
+      const totalRAM     = (packages ? packages.ram    : 0) + extraresources.ram;
+      const totalDisk    = (packages ? packages.disk   : 0) + extraresources.disk;
+      const totalCPU     = (packages ? packages.cpu    : 0) + extraresources.cpu;
+      const serversRemaining = totalServers - serversUsed;
+      const availableRAM  = totalRAM  - ram;
+      const availableDisk = totalDisk - disk;
+      const availableCPU  = totalCPU  - cpu;
+      const pct = (u, t) => Math.min(Math.round((u / (t || 1)) * 100), 100);
+    %>
+
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+      <!-- Servers -->
+      <div class="bw-card rounded-xl p-4 animate-fade-up" style="animation-delay:0.05s">
+        <div class="stat-label mb-1">SERVERS</div>
+        <div class="stat-value"><%= serversRemaining %></div>
+        <div class="text-xs mt-1" style="color:var(--text-dim)">of <%= totalServers %> slots free</div>
+        <div class="resource-bar-track mt-3">
+          <div class="resource-bar-fill" style="width:<%= pct(serversUsed, totalServers) %>%"></div>
+        </div>
+      </div>
+      <!-- RAM -->
+      <div class="bw-card rounded-xl p-4 animate-fade-up" style="animation-delay:0.1s">
+        <div class="stat-label mb-1">MEMORY</div>
+        <div class="stat-value"><%= (availableRAM/1024).toFixed(1) %><span class="text-base font-normal" style="color:var(--text-dim)">GB</span></div>
+        <div class="text-xs mt-1" style="color:var(--text-dim)">of <%= (totalRAM/1024).toFixed(1) %>GB free</div>
+        <div class="resource-bar-track mt-3">
+          <div class="resource-bar-fill" style="width:<%= pct(ram, totalRAM) %>%"></div>
+        </div>
+      </div>
+      <!-- CPU -->
+      <div class="bw-card rounded-xl p-4 animate-fade-up" style="animation-delay:0.15s">
+        <div class="stat-label mb-1">CPU</div>
+        <div class="stat-value"><%= availableCPU %><span class="text-base font-normal" style="color:var(--text-dim)">%</span></div>
+        <div class="text-xs mt-1" style="color:var(--text-dim)">of <%= totalCPU %>% free</div>
+        <div class="resource-bar-track mt-3">
+          <div class="resource-bar-fill" style="width:<%= pct(cpu, totalCPU) %>%"></div>
+        </div>
+      </div>
+      <!-- Disk -->
+      <div class="bw-card rounded-xl p-4 animate-fade-up" style="animation-delay:0.2s">
+        <div class="stat-label mb-1">DISK</div>
+        <div class="stat-value"><%= (availableDisk/1024).toFixed(1) %><span class="text-base font-normal" style="color:var(--text-dim)">GB</span></div>
+        <div class="text-xs mt-1" style="color:var(--text-dim)">of <%= (totalDisk/1024).toFixed(1) %>GB free</div>
+        <div class="resource-bar-track mt-3">
+          <div class="resource-bar-fill" style="width:<%= pct(disk, totalDisk) %>%"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── ANNOUNCEMENTS ── -->
+    <% if (settings.announcements && settings.announcements.enabled && settings.announcements.message) { %>
+    <div class="bw-card rounded-xl p-4 mb-6 flex items-start gap-3 animate-fade-up">
+      <i class="fas fa-bullhorn mt-0.5" style="color:var(--warn)"></i>
+      <p class="text-sm" style="color:var(--text-secondary)"><%= settings.announcements.message %></p>
+    </div>
+    <% } %>
+
+    <!-- ── SERVERS LIST ── -->
+    <div class="animate-fade-up" style="animation-delay:0.25s">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="font-bold text-lg tracking-tight" style="font-family:'JetBrains Mono',monospace">YOUR SERVERS</h2>
+        <span class="stat-label"><%= serversUsed %> / <%= totalServers %></span>
+      </div>
+
+      <!-- Empty state -->
+      <% if (serversUsed === 0) { %>
+      <a href="/servers/new" class="bw-card rounded-xl p-12 flex flex-col items-center gap-4 text-center no-underline block hover:border-white">
+        <div class="w-16 h-16 rounded-full border border-dashed flex items-center justify-center" style="border-color:var(--border-bright)">
+          <i class="fas fa-server text-2xl" style="color:var(--text-dim)"></i>
+        </div>
+        <div>
+          <p class="font-semibold">No servers yet</p>
+          <p class="text-sm mt-1" style="color:var(--text-dim)">Click here to spin up your first server</p>
+        </div>
+        <span class="btn-primary px-5 py-2 rounded-lg text-sm">CREATE SERVER</span>
+      </a>
+      <% } %>
+
+      <!-- Server cards grid -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+        <% for (let i = 0; i < serversUsed; i++) {
+          const s = pterodactyl.relationships.servers.data[i].attributes;
+        %>
+        <div class="server-card relative flex flex-col" style="animation-delay:<%= 0.05 * i %>s">
+          <div class="corner-accent"></div>
+          <!-- Card header -->
+          <div class="server-card-header p-4 pb-3">
+            <div class="flex items-start justify-between gap-2">
+              <div class="min-w-0">
+                <p class="font-bold text-base truncate"><%= s.name.length > 18 ? s.name.slice(0,16)+'…' : s.name %></p>
+                <p class="text-xs mt-0.5 truncate" style="color:var(--text-dim);font-family:'JetBrains Mono',monospace">
+                  <%= s.description || 'No description' %>
+                </p>
+              </div>
+              <% if (settings.renewals && settings.renewals.status) { %>
+              <div id="renew-status-<%= s.id %>" class="badge-warn flex-shrink-0 text-xs px-2 py-1 rounded-full font-mono">…</div>
+              <script>
+                (function() {
+                  fetch('/api/renewalstatus?id=<%= s.id %>')
+                    .then(r => r.json())
+                    .then(d => {
+                      const el = document.getElementById('renew-status-<%= s.id %>');
+                      if (!el) return;
+                      if (!d.text || d.text === 'Disabled') {
+                        el.textContent = 'no renewal'; el.className = 'badge-offline flex-shrink-0 text-xs px-2 py-1 rounded-full font-mono';
+                      } else {
+                        el.textContent = d.text;
+                      }
+                    }).catch(() => {});
+                })();
+              </script>
+              <% } %>
+            </div>
+          </div>
+          <!-- Card body -->
+          <div class="p-4 pt-3 flex-1 flex flex-col gap-3">
+            <!-- Specs -->
+            <div class="grid grid-cols-3 gap-2 text-xs" style="font-family:'JetBrains Mono',monospace;color:var(--text-dim)">
+              <div class="flex flex-col items-center bw-card rounded-lg p-2 gap-1">
+                <i class="fas fa-microchip"></i>
+                <span style="color:var(--text-primary);font-weight:600"><%= s.limits.cpu %>%</span>
+                <span>CPU</span>
+              </div>
+              <div class="flex flex-col items-center bw-card rounded-lg p-2 gap-1">
+                <i class="fas fa-memory"></i>
+                <span style="color:var(--text-primary);font-weight:600"><%= s.limits.memory %>MB</span>
+                <span>RAM</span>
+              </div>
+              <div class="flex flex-col items-center bw-card rounded-lg p-2 gap-1">
+                <i class="fas fa-hard-drive"></i>
+                <span style="color:var(--text-primary);font-weight:600"><%= s.limits.disk %>MB</span>
+                <span>DISK</span>
+              </div>
+            </div>
+            <!-- Actions -->
+            <div class="flex flex-wrap gap-2 mt-auto pt-1">
+              <a href="<%= settings.pterodactyl.domain %>/server/<%= s.uuid %>" target="_blank" rel="noreferrer"
+                 class="btn-primary flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs no-underline">
+                <i class="fas fa-arrow-up-right-from-square text-xs"></i> OPEN
+              </a>
+              <a href="/edit?id=<%= s.id %>" class="btn-ghost flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs no-underline">
+                <i class="fas fa-pen-to-square text-xs"></i> Edit
+              </a>
+              <% if (settings.renewals && settings.renewals.status) { %>
+              <a href="/renew?id=<%= s.id %>" class="btn-ghost flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs no-underline">
+                <i class="fas fa-rotate text-xs"></i>
+              </a>
+              <% } %>
+              <a href="/delete?id=<%= s.id %>" class="btn-danger flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs no-underline">
+                <i class="fas fa-trash text-xs"></i>
+              </a>
+            </div>
+          </div>
+        </div>
+        <% } %>
+      </div>
+    </div>
+
+    <%- include('../components/footer') %>
+  </main>
+</div>
+</body>
+</html>
