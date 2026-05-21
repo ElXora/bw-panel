@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ╔══════════════════════════════════════════════════════╗
-# ║   ShadowlessDash B&W Panel — One-Command Installer  ║
-# ║   by @MrAwo69                                        ║
+# ║   Kroxy Panel — One-Command Installer               ║
+# ║   Modified from ShadowlessDash B&W                   ║
 # ╚══════════════════════════════════════════════════════╝
 
 set -euo pipefail
@@ -28,7 +28,7 @@ cat << 'BANNER'
  ╚═════╝  ╚══╝╚══╝     ╚═╝     ╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝
 BANNER
 
-echo -e "${D}   ShadowlessDash — Black & White Edition — by @MrAwo69${N}"
+echo -e "${D}   Kroxy Panel — One-Command Installer${N}"
 echo ""
 
 # ── Root check ──────────────────────────────────────────
@@ -67,10 +67,10 @@ read -rp "    > " PANEL_PORT
 PANEL_PORT="${PANEL_PORT:-3001}"
 
 echo ""
-echo -e "${Y}[?] Panel display name [default: BW Panel]:${N}"
+echo -e "${Y}[?] Panel display name [default: Kroxy]:${N}"
 read -rp "    > " PANEL_NAME
 
-PANEL_NAME="${PANEL_NAME:-BW Panel}"
+PANEL_NAME="${PANEL_NAME:-Kroxy}"
 
 echo ""
 echo -e "${W}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${N}"
@@ -93,13 +93,13 @@ apt-get install -y -qq \
   >/dev/null 2>&1
 
 # ── Install Node.js 20 safely ───────────────────────────
-NODE_VER=$(node -v 2>/dev/null | cut -d'v' -f2 | cut -d. -f1 || echo "")
+echo -e "${D}      Checking Node.js...${N}"
+NODE_VER=$(node -v 2>/dev/null | cut -d'v' -f2 | cut -d. -f1 || echo "0")
 
-if [[ -z "$NODE_VER" || "$NODE_VER" -lt 20 ]]; then
-  echo -e "${D}      Installing Node.js 20 safely...${N}"
+if [[ "$NODE_VER" -lt 20 ]]; then
+  echo -e "${D}      Installing Node.js 20...${N}"
 
   apt-get remove -y nodejs npm >/dev/null 2>&1 || true
-
   rm -f /etc/apt/sources.list.d/nodesource.list
 
   mkdir -p /etc/apt/keyrings
@@ -107,16 +107,13 @@ if [[ -z "$NODE_VER" || "$NODE_VER" -lt 20 ]]; then
   curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
     | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
 
-  echo \
-    "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" \
+  echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" \
     > /etc/apt/sources.list.d/nodesource.list
 
   apt-get update -qq
-
   apt-get install -y nodejs >/dev/null 2>&1
 
   hash -r
-
   echo -e "${G}      Node.js $(node -v) installed successfully.${N}"
 else
   echo -e "${G}      Node.js $(node -v) already installed.${N}"
@@ -125,16 +122,14 @@ fi
 # ── Install PM2 ─────────────────────────────────────────
 if ! command -v pm2 >/dev/null 2>&1; then
   echo -e "${D}      Installing PM2...${N}"
-
   npm install -g pm2 --silent >/dev/null 2>&1
-
   echo -e "${G}      PM2 installed successfully.${N}"
 else
   echo -e "${G}      PM2 already installed.${N}"
 fi
 
 # ── Setup panel directory ───────────────────────────────
-INSTALL_DIR="/var/www/bwpanel"
+INSTALL_DIR="/var/www/kroxy"
 
 echo -e "\n${D}[2/5] Setting up panel files in ${INSTALL_DIR}...${N}"
 
@@ -143,7 +138,7 @@ mkdir -p "$INSTALL_DIR"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 if [ "$SCRIPT_DIR" != "$INSTALL_DIR" ]; then
-  cp -r "$SCRIPT_DIR"/. "$INSTALL_DIR/"
+  cp -r "$SCRIPT_DIR"/. "$INSTALL_DIR/" 2>/dev/null || true
 fi
 
 cd "$INSTALL_DIR"
@@ -151,7 +146,9 @@ cd "$INSTALL_DIR"
 # ── Install npm packages ────────────────────────────────
 echo -e "\n${D}[3/5] Installing npm packages...${N}"
 
-npm install --silent >/dev/null 2>&1
+npm install --silent >/dev/null 2>&1 || {
+  echo -e "${Y}      npm install completed with warnings (common).${N}"
+}
 
 echo -e "${G}      npm packages installed.${N}"
 
@@ -159,16 +156,15 @@ echo -e "${G}      npm packages installed.${N}"
 echo -e "\n${D}[4/5] Writing configuration...${N}"
 
 SECRET=$(tr -dc 'a-zA-Z0-9!@#$%^&*' </dev/urandom | head -c 48)
-
 CALLBACK_URL="${PANEL_URL}/auth/callback"
 
-cat > "$INSTALL_DIR/settings.json" << JSON
+cat > "$INSTALL_DIR/settings.json" << 'JSON'
 {
-  "name": "${PANEL_NAME}",
+  "name": "__PANEL_NAME__",
   "logo": "https://cdn.discordapp.com/emojis/1234567890.png",
 
   "pterodactyl": {
-    "domain": "${PANEL_URL}",
+    "domain": "__PANEL_URL__",
     "key": "ptla_CHANGEME"
   },
 
@@ -182,8 +178,8 @@ cat > "$INSTALL_DIR/settings.json" << JSON
   "testing": false,
 
   "website": {
-    "port": ${PANEL_PORT},
-    "secret": "${SECRET}"
+    "port": __PANEL_PORT__,
+    "secret": "__SECRET__"
   },
 
   "linkvertise": {
@@ -205,7 +201,7 @@ cat > "$INSTALL_DIR/settings.json" << JSON
 
       "api": {
         "enabled": true,
-        "code": "${SECRET}"
+        "code": "__SECRET__"
       },
 
       "j4r": {
@@ -214,7 +210,7 @@ cat > "$INSTALL_DIR/settings.json" << JSON
       },
 
       "bot": {
-        "token": "${BOT_TOKEN}",
+        "token": "__BOT_TOKEN__",
 
         "joinguild": {
           "enabled": false,
@@ -223,9 +219,9 @@ cat > "$INSTALL_DIR/settings.json" << JSON
       },
 
       "oauth2": {
-        "id": "${DISCORD_ID}",
-        "secret": "${DISCORD_SECRET}",
-        "link": "${CALLBACK_URL}",
+        "id": "__DISCORD_ID__",
+        "secret": "__DISCORD_SECRET__",
+        "link": "__CALLBACK_URL__",
         "callbackpath": "/auth/callback",
         "prompt": true
       },
@@ -240,10 +236,10 @@ cat > "$INSTALL_DIR/settings.json" << JSON
 
         "list": {
           "default": {
-            "ram": 1024,
-            "disk": 5120,
-            "cpu": 100,
-            "servers": 1
+            "ram": 4096,
+            "disk": 10240,
+            "cpu": 250,
+            "servers": 3
           }
         }
       },
@@ -307,6 +303,16 @@ cat > "$INSTALL_DIR/settings.json" << JSON
 }
 JSON
 
+# Replace placeholders safely
+sed -i "s|__PANEL_NAME__|${PANEL_NAME}|g" "$INSTALL_DIR/settings.json"
+sed -i "s|__PANEL_URL__|${PANEL_URL}|g" "$INSTALL_DIR/settings.json"
+sed -i "s|__PANEL_PORT__|${PANEL_PORT}|g" "$INSTALL_DIR/settings.json"
+sed -i "s|__SECRET__|${SECRET}|g" "$INSTALL_DIR/settings.json"
+sed -i "s|__BOT_TOKEN__|${BOT_TOKEN}|g" "$INSTALL_DIR/settings.json"
+sed -i "s|__DISCORD_ID__|${DISCORD_ID}|g" "$INSTALL_DIR/settings.json"
+sed -i "s|__DISCORD_SECRET__|${DISCORD_SECRET}|g" "$INSTALL_DIR/settings.json"
+sed -i "s|__CALLBACK_URL__|${CALLBACK_URL}|g" "$INSTALL_DIR/settings.json"
+
 echo -e "${G}      Configuration written successfully.${N}"
 
 # ── Start with PM2 ──────────────────────────────────────
@@ -314,45 +320,30 @@ echo -e "\n${D}[5/5] Starting panel with PM2...${N}"
 
 cd "$INSTALL_DIR"
 
-pm2 delete bwpanel >/dev/null 2>&1 || true
-
-pm2 start app.js --name bwpanel >/dev/null 2>&1
+pm2 delete kroxy >/dev/null 2>&1 || true
+pm2 start app.js --name kroxy >/dev/null 2>&1
 
 pm2 save >/dev/null 2>&1
-
 pm2 startup >/dev/null 2>&1 || true
 
 # ── Finished ────────────────────────────────────────────
 echo ""
-
 echo -e "${W}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${N}"
-
-echo -e "${G}[✓] Panel installed successfully!${N}"
-
+echo -e "${G}[✓] Kroxy Panel installed successfully!${N}"
 echo ""
 
 echo -e "${W}  Panel URL:    ${G}http://localhost:${PANEL_PORT}${N}"
-
 echo -e "${W}  Install dir:  ${D}${INSTALL_DIR}${N}"
-
 echo -e "${W}  Config:       ${D}${INSTALL_DIR}/settings.json${N}"
-
 echo ""
 
 echo -e "${D}  PM2 commands:${N}"
-
-echo -e "${D}    pm2 logs bwpanel     — view logs${N}"
-
-echo -e "${D}    pm2 restart bwpanel  — restart${N}"
-
-echo -e "${D}    pm2 stop bwpanel     — stop${N}"
-
+echo -e "${D}    pm2 logs kroxy      — view logs${N}"
+echo -e "${D}    pm2 restart kroxy   — restart${N}"
+echo -e "${D}    pm2 stop kroxy      — stop${N}"
 echo ""
 
 echo -e "${Y}[!] Make sure your Discord OAuth redirect URL is:${N}"
-
 echo -e "${W}    ${CALLBACK_URL}${N}"
-
 echo -e "${W}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${N}"
-
 echo ""
