@@ -1,349 +1,311 @@
-#!/usr/bin/env bash
-# ╔══════════════════════════════════════════════════════╗
-# ║   Kroxy Panel — One-Command Installer               ║
-# ║   Modified from ShadowlessDash B&W                   ║
-# ╚══════════════════════════════════════════════════════╝
+#!/bin/bash
+# ============================================================
+#
+#   ██╗  ██╗██████╗  ██████╗ ██╗  ██╗██╗   ██╗
+#   ██║ ██╔╝██╔══██╗██╔═══██╗╚██╗██╔╝╚██╗ ██╔╝
+#   █████╔╝ ██████╔╝██║   ██║ ╚███╔╝  ╚████╔╝
+#   ██╔═██╗ ██╔══██╗██║   ██║ ██╔██╗   ╚██╔╝
+#   ██║  ██╗██║  ██║╚██████╔╝██╔╝ ██╗   ██║
+#   ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝   ╚═╝
+#
+#   Kroxy Panel — One-Command Installer
+#   Black & White Theme | Heliactyl Base
+# ============================================================
 
 set -euo pipefail
-export DEBIAN_FRONTEND=noninteractive
 
-# ── Colors ──────────────────────────────────────────────
-R='\033[0;31m'
-G='\033[0;32m'
-Y='\033[1;33m'
-W='\033[1;37m'
-D='\033[0;37m'
-N='\033[0m'
+# ── Colors ────────────────────────────────────────────────
+RESET='\033[0m'
+BOLD='\033[1m'
+WHITE='\033[1;37m'
+GRAY='\033[0;37m'
+DIM='\033[2m'
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
 
+# ── Helpers ───────────────────────────────────────────────
+step()  { echo -e "\n${WHITE}${BOLD}[•] $1${RESET}"; }
+ok()    { echo -e "  ${GREEN}✓${RESET}  $1"; }
+warn()  { echo -e "  ${YELLOW}⚠${RESET}  $1"; }
+fail()  { echo -e "\n${RED}${BOLD}[✗] ERROR: $1${RESET}\n"; exit 1; }
+dim()   { echo -e "  ${DIM}$1${RESET}"; }
+ask()   { echo -e "\n${WHITE}${BOLD}$1${RESET}"; }
+
+INSTALL_DIR="/opt/kroxy"
+SERVICE_NAME="kroxy"
+ALREADY_INSTALLED=false
+
+# ── Banner ────────────────────────────────────────────────
 clear
-
-echo -e "${W}"
-
+echo -e "${WHITE}${BOLD}"
 cat << 'BANNER'
- ██████╗ ██╗    ██╗    ██████╗  █████╗ ███╗   ██╗███████╗██╗
- ██╔══██╗██║    ██║    ██╔══██╗██╔══██╗████╗  ██║██╔════╝██║
- ██████╔╝██║ █╗ ██║    ██████╔╝███████║██╔██╗ ██║█████╗  ██║
- ██╔══██╗██║███╗██║    ██╔═══╝ ██╔══██║██║╚██╗██║██╔══╝  ██║
- ██████╔╝╚███╔███╔╝    ██║     ██║  ██║██║ ╚████║███████╗███████╗
- ╚═════╝  ╚══╝╚══╝     ╚═╝     ╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝
+
+  ██╗  ██╗██████╗  ██████╗ ██╗  ██╗██╗   ██╗
+  ██║ ██╔╝██╔══██╗██╔═══██╗╚██╗██╔╝╚██╗ ██╔╝
+  █████╔╝ ██████╔╝██║   ██║ ╚███╔╝  ╚████╔╝
+  ██╔═██╗ ██╔══██╗██║   ██║ ██╔██╗   ╚██╔╝
+  ██║  ██╗██║  ██║╚██████╔╝██╔╝ ██╗   ██║
+  ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝   ╚═╝
+
 BANNER
+echo -e "${RESET}${GRAY}  Kroxy Panel Installer — Black & White Edition${RESET}"
+echo -e "${DIM}  ─────────────────────────────────────────────${RESET}\n"
+sleep 0.5
 
-echo -e "${D}   Kroxy Panel — One-Command Installer${N}"
-echo ""
-
-# ── Root check ──────────────────────────────────────────
-if [ "$EUID" -ne 0 ]; then
-  echo -e "${R}[✗] Please run as root: sudo bash install.sh${N}"
-  exit 1
+# ── Root check ────────────────────────────────────────────
+if [[ "$EUID" -ne 0 ]]; then
+  fail "Please run as root: sudo bash install.sh"
 fi
 
-# ── Prompts ─────────────────────────────────────────────
-echo -e "${Y}[?] Panel URL (e.g. https://panel.yourdomain.com):${N}"
-read -rp "    > " PANEL_URL
+# ── Already installed? ────────────────────────────────────
+if [[ -f "$INSTALL_DIR/app.js" ]]; then
+  ALREADY_INSTALLED=true
+  warn "Kroxy is already installed at ${INSTALL_DIR}"
+  echo -e "  ${DIM}Found existing installation. Skipping dependency setup.${RESET}"
+fi
 
-PANEL_URL="${PANEL_URL%/}"
+# ── Gather user input ─────────────────────────────────────
+ask "→ Panel URL (e.g. https://panel.yourdomain.com):"
+read -rp "  URL: " PANEL_URL
+[[ -z "$PANEL_URL" ]] && fail "Panel URL cannot be empty."
 
-if [[ -z "$PANEL_URL" ]]; then
-  echo -e "${R}[✗] Panel URL is required.${N}"
-  exit 1
+ask "→ Pterodactyl Application API Key (starts with ptla_):"
+read -rp "  Key: " PTERO_KEY
+[[ -z "$PTERO_KEY" ]] && fail "API key cannot be empty."
+
+ask "→ Admin user email (for first account):"
+read -rp "  Email: " ADMIN_EMAIL
+[[ -z "$ADMIN_EMAIL" ]] && fail "Admin email cannot be empty."
+
+ask "→ Port to run Kroxy on (default: 3001):"
+read -rp "  Port: " APP_PORT
+APP_PORT="${APP_PORT:-3001}"
+
+ask "→ Discord OAuth Client ID:"
+read -rp "  Client ID: " DISCORD_CLIENT_ID
+[[ -z "$DISCORD_CLIENT_ID" ]] && fail "Discord Client ID cannot be empty."
+
+ask "→ Discord OAuth Client Secret:"
+read -rp "  Client Secret: " DISCORD_CLIENT_SECRET
+[[ -z "$DISCORD_CLIENT_SECRET" ]] && fail "Discord Client Secret cannot be empty."
+
+ask "→ Discord Bot Token (for role/join features, or press Enter to skip):"
+read -rp "  Bot Token: " DISCORD_BOT_TOKEN
+DISCORD_BOT_TOKEN="${DISCORD_BOT_TOKEN:-placeholder}"
+
+ask "→ Session secret (random string, or press Enter to auto-generate):"
+read -rp "  Secret: " SESSION_SECRET
+if [[ -z "$SESSION_SECRET" ]]; then
+  SESSION_SECRET=$(tr -dc 'a-zA-Z0-9' < /dev/urandom | head -c 48)
+  ok "Auto-generated session secret."
 fi
 
 echo ""
-echo -e "${Y}[?] Discord OAuth Client ID:${N}"
-read -rp "    > " DISCORD_ID
-
+echo -e "${DIM}  ─────────────────────────────────────────────${RESET}"
+echo -e "  ${WHITE}${BOLD}Summary${RESET}"
+dim "  Panel URL  : $PANEL_URL"
+dim "  Admin Email: $ADMIN_EMAIL"
+dim "  Port       : $APP_PORT"
+dim "  Install dir: $INSTALL_DIR"
+echo -e "${DIM}  ─────────────────────────────────────────────${RESET}"
 echo ""
-echo -e "${Y}[?] Discord OAuth Client Secret:${N}"
-read -rp "    > " DISCORD_SECRET
+ask "→ Proceed with installation? (y/N):"
+read -rp "  " CONFIRM
+[[ "${CONFIRM,,}" != "y" && "${CONFIRM,,}" != "yes" ]] && { echo -e "\n${GRAY}  Cancelled.${RESET}\n"; exit 0; }
 
-echo ""
-echo -e "${Y}[?] Discord Bot Token:${N}"
-read -rp "    > " BOT_TOKEN
-
-echo ""
-echo -e "${Y}[?] What port should the panel run on? [default: 3001]:${N}"
-read -rp "    > " PANEL_PORT
-
-PANEL_PORT="${PANEL_PORT:-3001}"
-
-echo ""
-echo -e "${Y}[?] Panel display name [default: Kroxy]:${N}"
-read -rp "    > " PANEL_NAME
-
-PANEL_NAME="${PANEL_NAME:-Kroxy}"
-
-echo ""
-echo -e "${W}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${N}"
-echo -e "${W} Installing — please wait...${N}"
-echo -e "${W}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${N}"
-
-# ── System deps ─────────────────────────────────────────
-echo -e "\n${D}[1/5] Installing system dependencies...${N}"
-
-apt-get update -qq
-
-apt-get install -y -qq \
-  curl \
-  git \
-  unzip \
-  ca-certificates \
-  gnupg \
-  lsb-release \
-  software-properties-common \
-  >/dev/null 2>&1
-
-# ── Install Node.js 20 safely ───────────────────────────
-echo -e "${D}      Checking Node.js...${N}"
-NODE_VER=$(node -v 2>/dev/null | cut -d'v' -f2 | cut -d. -f1 || echo "0")
-
-if [[ "$NODE_VER" -lt 20 ]]; then
-  echo -e "${D}      Installing Node.js 20...${N}"
-
-  apt-get remove -y nodejs npm >/dev/null 2>&1 || true
-  rm -f /etc/apt/sources.list.d/nodesource.list
-
-  mkdir -p /etc/apt/keyrings
-
-  curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
-    | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
-
-  echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" \
-    > /etc/apt/sources.list.d/nodesource.list
-
+# ── Dependencies (skip if already installed) ──────────────
+if [[ "$ALREADY_INSTALLED" == false ]]; then
+  step "Installing system dependencies..."
   apt-get update -qq
-  apt-get install -y nodejs >/dev/null 2>&1
+  apt-get install -y -qq curl git unzip sqlite3 > /dev/null 2>&1
+  ok "System packages installed."
 
-  hash -r
-  echo -e "${G}      Node.js $(node -v) installed successfully.${N}"
+  step "Installing Node.js 20..."
+  if ! command -v node &>/dev/null || [[ "$(node -v | cut -d. -f1 | tr -d 'v')" -lt 18 ]]; then
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - > /dev/null 2>&1
+    apt-get install -y -qq nodejs > /dev/null 2>&1
+    ok "Node.js $(node -v) installed."
+  else
+    ok "Node.js $(node -v) already present — skipping."
+  fi
+
+  step "Installing PM2..."
+  if ! command -v pm2 &>/dev/null; then
+    npm install -g pm2 --silent > /dev/null 2>&1
+    ok "PM2 installed."
+  else
+    ok "PM2 already present — skipping."
+  fi
 else
-  echo -e "${G}      Node.js $(node -v) already installed.${N}"
+  step "Skipping dependency setup (already installed)."
+  ok "Node.js $(node -v)"
+  ok "PM2 $(pm2 -v 2>/dev/null || echo 'not found — run: npm i -g pm2')"
 fi
 
-# ── Install PM2 ─────────────────────────────────────────
-if ! command -v pm2 >/dev/null 2>&1; then
-  echo -e "${D}      Installing PM2...${N}"
-  npm install -g pm2 --silent >/dev/null 2>&1
-  echo -e "${G}      PM2 installed successfully.${N}"
-else
-  echo -e "${G}      PM2 already installed.${N}"
+# ── Copy / update files ───────────────────────────────────
+step "Setting up Kroxy files..."
+
+# Stop existing PM2 process cleanly without kicking the session
+if pm2 list 2>/dev/null | grep -q "$SERVICE_NAME"; then
+  dim "Stopping existing PM2 process (session preserved)..."
+  pm2 stop "$SERVICE_NAME" > /dev/null 2>&1 || true
 fi
-
-# ── Setup panel directory ───────────────────────────────
-INSTALL_DIR="/var/www/kroxy"
-
-echo -e "\n${D}[2/5] Setting up panel files in ${INSTALL_DIR}...${N}"
 
 mkdir -p "$INSTALL_DIR"
 
+# Copy panel files (from same dir as this script, or clone)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-if [ "$SCRIPT_DIR" != "$INSTALL_DIR" ]; then
-  cp -r "$SCRIPT_DIR"/. "$INSTALL_DIR/" 2>/dev/null || true
+if [[ -f "$SCRIPT_DIR/app.js" ]]; then
+  dim "Copying from local source..."
+  cp -r "$SCRIPT_DIR"/. "$INSTALL_DIR/"
+  ok "Files copied."
+else
+  warn "app.js not found next to installer — cloning from GitHub..."
+  dim "Make sure the repo URL below is correct, or place install.sh next to the panel files."
+  # Fallback: pull from a repo if available
+  # git clone https://github.com/yourrepo/kroxy.git "$INSTALL_DIR" > /dev/null 2>&1
+  fail "No panel source found. Place install.sh in the same folder as app.js and re-run."
 fi
 
-cd "$INSTALL_DIR"
+# ── Write settings.json ───────────────────────────────────
+step "Writing configuration..."
 
-# ── Install npm packages ────────────────────────────────
-echo -e "\n${D}[3/5] Installing npm packages...${N}"
+SETTINGS_FILE="$INSTALL_DIR/settings.json"
 
-npm install --silent >/dev/null 2>&1 || {
-  echo -e "${Y}      npm install completed with warnings (common).${N}"
-}
+# Preserve existing settings.json as backup if updating
+if [[ -f "$SETTINGS_FILE" && "$ALREADY_INSTALLED" == true ]]; then
+  cp "$SETTINGS_FILE" "${SETTINGS_FILE}.bak"
+  dim "Backed up existing settings.json → settings.json.bak"
+fi
 
-echo -e "${G}      npm packages installed.${N}"
-
-# ── Write settings.json ─────────────────────────────────
-echo -e "\n${D}[4/5] Writing configuration...${N}"
-
-SECRET=$(tr -dc 'a-zA-Z0-9!@#$%^&*' </dev/urandom | head -c 48)
-CALLBACK_URL="${PANEL_URL}/auth/callback"
-
-cat > "$INSTALL_DIR/settings.json" << 'JSON'
+cat > "$SETTINGS_FILE" << SETTINGS
 {
-  "name": "__PANEL_NAME__",
-  "logo": "https://cdn.discordapp.com/emojis/1234567890.png",
-
+  "name": "Kroxy",
+  "logo": "https://avatars.githubusercontent.com/u/188295803?s=400&v=4",
   "pterodactyl": {
-    "domain": "__PANEL_URL__",
-    "key": "ptla_CHANGEME"
+    "domain": "${PANEL_URL}",
+    "key": "${PTERO_KEY}"
   },
-
   "announcements": {
     "enabled": false,
     "message": ""
   },
-
   "timezone": "UTC",
   "version": "1.0.0",
   "testing": false,
-
   "website": {
-    "port": __PANEL_PORT__,
-    "secret": "__SECRET__"
+    "port": ${APP_PORT},
+    "secret": "${SESSION_SECRET}"
   },
-
+  "oauth2": {
+    "id": "${DISCORD_CLIENT_ID}",
+    "secret": "${DISCORD_CLIENT_SECRET}",
+    "link": "${PANEL_URL}",
+    "callbackpath": "/callback",
+    "prompt": false
+  },
   "linkvertise": {
     "userid": "50000",
     "dailyLimit": 1,
     "coins": 10
   },
-
   "database": "sqlite://database.sqlite",
-
   "api": {
-    "email": {
-      "enabled": false,
-      "resend": ""
-    },
-
+    "email": { "enabled": false, "resend": "" },
     "client": {
       "accountSwitcher": false,
-
       "api": {
         "enabled": true,
-        "code": "__SECRET__"
+        "code": "${SESSION_SECRET}"
       },
-
-      "j4r": {
-        "enabled": false,
-        "ads": []
-      },
-
+      "j4r": { "enabled": false, "ads": [] },
       "bot": {
-        "token": "__BOT_TOKEN__",
-
-        "joinguild": {
-          "enabled": false,
-          "guildid": []
-        }
+        "token": "${DISCORD_BOT_TOKEN}",
+        "joinguild": { "enabled": false, "guildid": ["000000000000000000"] },
+        "giverole": { "enabled": false, "guildid": "000000000000000000", "roleid": "000000000000000000" }
       },
-
-      "oauth2": {
-        "id": "__DISCORD_ID__",
-        "secret": "__DISCORD_SECRET__",
-        "link": "__CALLBACK_URL__",
-        "callbackpath": "/auth/callback",
-        "prompt": true
+      "passwordgenerator": { "signup": true, "length": 16 },
+      "allow": {
+        "newusers": true,
+        "regen": false,
+        "server": { "create": true, "modify": true, "delete": true }
       },
-
-      "coins": {
-        "enabled": true,
-        "name": "Credits"
-      },
-
+      "coins": { "enabled": true, "name": "Coins" },
       "packages": {
-        "default": "default",
-
+        "default": "free",
         "list": {
-          "default": {
-            "ram": 4096,
-            "disk": 10240,
-            "cpu": 250,
-            "servers": 3
-          }
+          "free": { "ram": 2048, "disk": 10240, "cpu": 100, "servers": 2 }
         }
       },
-
-      "locations": [
-        {
-          "name": "Default",
-          "id": "1"
-        }
-      ],
-
-      "eggs": {
-        "paper": {
-          "display": "Paper Minecraft",
-
-          "minimum": {
-            "ram": 512,
-            "disk": 1024,
-            "cpu": 50
-          },
-
-          "maximum": {
-            "ram": null,
-            "disk": null,
-            "cpu": null
-          },
-
-          "info": {
-            "egg": 3,
-
-            "docker_image": "ghcr.io/pterodactyl/yolks:java_17",
-
-            "startup": "java -Xms128M -XX:MaxRAMPercentage=95.0 -Dterminal.jline=false -Dterminal.ansi=true -jar {{SERVER_JARFILE}}",
-
-            "environment": {
-              "SERVER_JARFILE": "server.jar",
-              "BUILD_NUMBER": "latest"
-            },
-
-            "feature_limits": {
-              "databases": 1,
-              "backups": 1
-            }
-          }
-        }
-      }
+      "locations": { "1": { "name": "Default", "enabled": true } },
+      "eggs": {},
+      "renewal": false
     },
-
-    "afk": {
-      "enabled": false,
-      "every": 60,
-      "coins": 1
-    }
+    "afk": { "enabled": true, "path": "/afk", "every": 60, "coins": 1 }
   },
-
-  "renewals": {
-    "status": false,
-    "cost": 100,
-    "time": 7
-  }
+  "renewals": { "status": false, "cost": 10, "period": 7 }
 }
-JSON
+SETTINGS
 
-# Replace placeholders safely
-sed -i "s|__PANEL_NAME__|${PANEL_NAME}|g" "$INSTALL_DIR/settings.json"
-sed -i "s|__PANEL_URL__|${PANEL_URL}|g" "$INSTALL_DIR/settings.json"
-sed -i "s|__PANEL_PORT__|${PANEL_PORT}|g" "$INSTALL_DIR/settings.json"
-sed -i "s|__SECRET__|${SECRET}|g" "$INSTALL_DIR/settings.json"
-sed -i "s|__BOT_TOKEN__|${BOT_TOKEN}|g" "$INSTALL_DIR/settings.json"
-sed -i "s|__DISCORD_ID__|${DISCORD_ID}|g" "$INSTALL_DIR/settings.json"
-sed -i "s|__DISCORD_SECRET__|${DISCORD_SECRET}|g" "$INSTALL_DIR/settings.json"
-sed -i "s|__CALLBACK_URL__|${CALLBACK_URL}|g" "$INSTALL_DIR/settings.json"
+ok "settings.json written."
 
-echo -e "${G}      Configuration written successfully.${N}"
+# ── Install npm packages ───────────────────────────────────
+step "Installing npm dependencies..."
+cd "$INSTALL_DIR"
+npm install --silent > /dev/null 2>&1
+ok "npm packages installed."
 
-# ── Start with PM2 ──────────────────────────────────────
-echo -e "\n${D}[5/5] Starting panel with PM2...${N}"
+# ── Create admin user via Pterodactyl API ─────────────────
+step "Checking Pterodactyl admin user..."
 
+HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+  -H "Authorization: Bearer ${PTERO_KEY}" \
+  -H "Accept: application/json" \
+  "${PANEL_URL}/api/application/users" 2>/dev/null || echo "000")
+
+if [[ "$HTTP_CODE" == "200" ]]; then
+  ok "Pterodactyl API reachable."
+  dim "Admin user management is handled through the Pterodactyl panel at: ${PANEL_URL}/admin/users"
+  dim "Use the email you provided (${ADMIN_EMAIL}) for your admin account there."
+else
+  warn "Could not reach Pterodactyl API (HTTP ${HTTP_CODE}). Check your Panel URL and API key."
+  dim "You can still start Kroxy — just fix settings.json if the panel URL or key is wrong."
+fi
+
+# ── PM2 setup ─────────────────────────────────────────────
+step "Starting Kroxy with PM2..."
 cd "$INSTALL_DIR"
 
-pm2 delete kroxy >/dev/null 2>&1 || true
-pm2 start app.js --name kroxy >/dev/null 2>&1
+# Delete old process if exists, then start fresh — no shell exit
+pm2 delete "$SERVICE_NAME" > /dev/null 2>&1 || true
+pm2 start app.js --name "$SERVICE_NAME" --no-autorestart=false > /dev/null 2>&1
+pm2 save > /dev/null 2>&1
 
-pm2 save >/dev/null 2>&1
-pm2 startup >/dev/null 2>&1 || true
+# Set PM2 to restart on reboot (non-interactive, doesn't affect current session)
+pm2 startup systemd -u root --hp /root > /dev/null 2>&1 || true
+systemctl enable pm2-root > /dev/null 2>&1 || true
 
-# ── Finished ────────────────────────────────────────────
+ok "Kroxy started via PM2."
+
+# ── Done ─────────────────────────────────────────────────
 echo ""
-echo -e "${W}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${N}"
-echo -e "${G}[✓] Kroxy Panel installed successfully!${N}"
+echo -e "${WHITE}${BOLD}"
+cat << 'DONE'
+  ┌────────────────────────────────────────────┐
+  │         ✓  Kroxy is installed!             │
+  └────────────────────────────────────────────┘
+DONE
+echo -e "${RESET}"
+echo -e "  ${WHITE}${BOLD}Dashboard URL${RESET}   http://YOUR_SERVER_IP:${APP_PORT}"
+echo -e "  ${WHITE}${BOLD}Panel URL${RESET}       ${PANEL_URL}"
+echo -e "  ${WHITE}${BOLD}Admin Email${RESET}     ${ADMIN_EMAIL}"
+echo -e "  ${WHITE}${BOLD}Install Dir${RESET}     ${INSTALL_DIR}"
 echo ""
-
-echo -e "${W}  Panel URL:    ${G}http://localhost:${PANEL_PORT}${N}"
-echo -e "${W}  Install dir:  ${D}${INSTALL_DIR}${N}"
-echo -e "${W}  Config:       ${D}${INSTALL_DIR}/settings.json${N}"
-echo ""
-
-echo -e "${D}  PM2 commands:${N}"
-echo -e "${D}    pm2 logs kroxy      — view logs${N}"
-echo -e "${D}    pm2 restart kroxy   — restart${N}"
-echo -e "${D}    pm2 stop kroxy      — stop${N}"
-echo ""
-
-echo -e "${Y}[!] Make sure your Discord OAuth redirect URL is:${N}"
-echo -e "${W}    ${CALLBACK_URL}${N}"
-echo -e "${W}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${N}"
+echo -e "  ${DIM}Useful commands:${RESET}"
+echo -e "  ${DIM}  pm2 logs ${SERVICE_NAME}       — view live logs${RESET}"
+echo -e "  ${DIM}  pm2 restart ${SERVICE_NAME}    — restart panel${RESET}"
+echo -e "  ${DIM}  pm2 stop ${SERVICE_NAME}       — stop panel${RESET}"
+echo -e "  ${DIM}  nano ${INSTALL_DIR}/settings.json — edit config${RESET}"
 echo ""
