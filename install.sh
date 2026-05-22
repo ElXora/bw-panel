@@ -66,15 +66,11 @@ if [[ -f "$INSTALL_DIR/app.js" ]]; then
 fi
 
 # ── Gather user input ─────────────────────────────────────
-ask "→ Panel URL (e.g. https://panel.yourdomain.com):"
+ask "→ Panel URL — your Pterodactyl panel domain (e.g. https://panel.yourdomain.com):"
 read -rp "  URL: " PANEL_URL
 [[ -z "$PANEL_URL" ]] && fail "Panel URL cannot be empty."
 
-ask "→ Pterodactyl Application API Key (starts with ptla_):"
-read -rp "  Key: " PTERO_KEY
-[[ -z "$PTERO_KEY" ]] && fail "API key cannot be empty."
-
-ask "→ Admin user email (for first account):"
+ask "→ Admin user email (your account on Kroxy):"
 read -rp "  Email: " ADMIN_EMAIL
 [[ -z "$ADMIN_EMAIL" ]] && fail "Admin email cannot be empty."
 
@@ -106,6 +102,7 @@ echo -e "${DIM}  ─────────────────────
 echo -e "  ${WHITE}${BOLD}Summary${RESET}"
 dim "  Panel URL  : $PANEL_URL"
 dim "  Admin Email: $ADMIN_EMAIL"
+dim "  Note       : Pterodactyl API key must be set in settings.json after install"
 dim "  Port       : $APP_PORT"
 dim "  Install dir: $INSTALL_DIR"
 echo -e "${DIM}  ─────────────────────────────────────────────${RESET}"
@@ -186,7 +183,7 @@ cat > "$SETTINGS_FILE" << SETTINGS
   "logo": "https://avatars.githubusercontent.com/u/188295803?s=400&v=4",
   "pterodactyl": {
     "domain": "${PANEL_URL}",
-    "key": "${PTERO_KEY}"
+    "key": "ptla_REPLACEME"
   },
   "announcements": {
     "enabled": false,
@@ -250,29 +247,14 @@ cat > "$SETTINGS_FILE" << SETTINGS
 SETTINGS
 
 ok "settings.json written."
+warn "Pterodactyl API key not set yet — add it after install:"
+dim "  nano ${INSTALL_DIR}/settings.json   →   pterodactyl.key"
 
 # ── Install npm packages ───────────────────────────────────
 step "Installing npm dependencies..."
 cd "$INSTALL_DIR"
 npm install --silent > /dev/null 2>&1
 ok "npm packages installed."
-
-# ── Create admin user via Pterodactyl API ─────────────────
-step "Checking Pterodactyl admin user..."
-
-HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-  -H "Authorization: Bearer ${PTERO_KEY}" \
-  -H "Accept: application/json" \
-  "${PANEL_URL}/api/application/users" 2>/dev/null || echo "000")
-
-if [[ "$HTTP_CODE" == "200" ]]; then
-  ok "Pterodactyl API reachable."
-  dim "Admin user management is handled through the Pterodactyl panel at: ${PANEL_URL}/admin/users"
-  dim "Use the email you provided (${ADMIN_EMAIL}) for your admin account there."
-else
-  warn "Could not reach Pterodactyl API (HTTP ${HTTP_CODE}). Check your Panel URL and API key."
-  dim "You can still start Kroxy — just fix settings.json if the panel URL or key is wrong."
-fi
 
 # ── PM2 setup ─────────────────────────────────────────────
 step "Starting Kroxy with PM2..."
@@ -302,6 +284,11 @@ echo -e "  ${WHITE}${BOLD}Dashboard URL${RESET}   http://YOUR_SERVER_IP:${APP_PO
 echo -e "  ${WHITE}${BOLD}Panel URL${RESET}       ${PANEL_URL}"
 echo -e "  ${WHITE}${BOLD}Admin Email${RESET}     ${ADMIN_EMAIL}"
 echo -e "  ${WHITE}${BOLD}Install Dir${RESET}     ${INSTALL_DIR}"
+echo ""
+echo -e "  ${YELLOW}${BOLD}Next step:${RESET} Set your Pterodactyl API key:"
+echo -e "  ${DIM}  nano ${INSTALL_DIR}/settings.json${RESET}"
+echo -e "  ${DIM}  → pterodactyl.key = your ptla_xxxx Application API key${RESET}"
+echo -e "  ${DIM}  Then: pm2 restart ${SERVICE_NAME}${RESET}"
 echo ""
 echo -e "  ${DIM}Useful commands:${RESET}"
 echo -e "  ${DIM}  pm2 logs ${SERVICE_NAME}       — view live logs${RESET}"
